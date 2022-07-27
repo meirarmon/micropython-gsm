@@ -29,23 +29,33 @@ class SIMCOM7000G:
         while _ := self.uart.readline():
             continue
 
-    def wait_for(self, output, timeout=5000):
+    def wait_for(self, expected, timeout=5000):
         full_output = []
         start = time.ticks_ms()
         while time.ticks_diff(time.ticks_ms(), start) < timeout:
             while out := self.uart.readline():
                 out = out.strip()
-                full_output.append(out)
+                if not out:
+                    continue
+
+                try:
+                    out = out.decode()
+                except UnicodeError:
+                    print(f"<== {out}")
+                    continue
+
                 print(f"<== {out}")
-                if output.encode() in out:
+                full_output.append(out)
+
+                if expected in out:
                     return full_output
         return []
 
-    def send_cmd(self, cmd, output='OK', timeout=5000):
-        cmd = f'{cmd}\r\n'
+    def send_cmd(self, cmd, expected='OK', timeout=5000):
         print(f'==> {cmd}')
+        cmd = f'{cmd}\r\n'
         self.uart.write(cmd.encode())
-        return self.wait_for(output, timeout)
+        return self.wait_for(expected, timeout)
 
     def disable_echo(self):
         self.send_cmd('ATE0')
@@ -61,12 +71,12 @@ class SIMCOM7000G:
 
     def check_sim_pin(self):
         result = self.send_cmd("AT+CPIN?")
-        if '+CPIN: READY'.encode() not in result:
+        if '+CPIN: READY' not in result:
             raise Exception("SIM PIN is required, currently unsupported by this library")
 
     def check_model(self):
         result = self.send_cmd("AT+GMM")
-        if 'SIMCOM_SIM7000G'.encode() not in result:
+        if 'SIMCOM_SIM7000G' not in result:
             raise Exception(f"SIMCOM_SIM7000G supported, unexpected model {result[-2]}")
 
     def set_gpio(self):
@@ -89,7 +99,7 @@ class SIMCOM7000G:
         start = time.ticks_ms()
         while time.ticks_diff(time.ticks_ms(), start) < timeout:
             result = self.send_cmd('AT+CEREG?')
-            if '+CEREG: 0,1'.encode() in result:
+            if '+CEREG: 0,1' in result:
                 break
             time.sleep_ms(500)
         else:
@@ -112,5 +122,3 @@ if __name__ == '__main__':
     gsm.set_pdp_context(1)
     gsm.set_pdp_context(13)
     gsm.register_on_network()
-    # Does this connect PPP? What about the other PDP context?
-    # gsm.send_cmd('ATD*99#')
