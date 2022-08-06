@@ -5,13 +5,13 @@ from machine import UART, Pin
 class SIMCOM7000G:
     def __init__(self, *, modem_pwr_pin, rx, tx, apn):
         self.pwr_pin = Pin(modem_pwr_pin, Pin.OUT)
-        self.uart = UART(1, 9600, timeout=500, rx=rx, tx=tx)
+        self.uart = UART(1, 9600, timeout=1000, rx=rx, tx=tx)
         self.apn = apn
         self.init()
 
     def init(self):
         self.pwr_pin.value(0)
-        time.sleep_ms(300)
+        time.sleep_ms(1200)
         self.pwr_pin.value(1)
         # Wait for power on
         time.sleep_ms(5000)
@@ -61,7 +61,7 @@ class SIMCOM7000G:
         self.send_cmd('ATE0')
 
     def disable_error_mode(self):
-        self.send_cmd(f'AT+CMEE=0')
+        self.send_cmd(f'AT+CMEE=1')
 
     def enable_network_time_update(self):
         self.send_cmd(f'AT+CLTS=1')
@@ -89,11 +89,11 @@ class SIMCOM7000G:
         self.send_cmd('AT+CNMP=38')
 
     def set_nb_iot(self):
-        self.send_cmd('AT+CMNB=2')
+        self.send_cmd('AT+CMNB=3')
 
-    def set_pdp_context(self, cid):
+    def set_pdp_context(self, cid, mode):
         # PDP context can also be set to PPP instead of IP
-        self.send_cmd(f'AT+CGDCONT={cid},"IP","{self.apn}","0.0.0.0",0,0,0,0')
+        self.send_cmd(f'AT+CGDCONT={cid},"{mode}","{self.apn}","0.0.0.0",0,0,0,0')
 
     def register_on_network(self, timeout=60000):
         start = time.ticks_ms()
@@ -105,9 +105,10 @@ class SIMCOM7000G:
         else:
             raise Exception('Failure to register on network')
 
+APN = "internet.golantelecom.net.il"
 
-if __name__ == '__main__':
-    gsm = SIMCOM7000G(modem_pwr_pin=4, rx=26, tx=27, apn="SKY")
+def run():
+    gsm = SIMCOM7000G(modem_pwr_pin=4, rx=26, tx=27, apn=APN)
     gsm.disable_echo()
     gsm.disable_error_mode()
     gsm.enable_network_time_update()
@@ -119,6 +120,52 @@ if __name__ == '__main__':
     gsm.set_nb_iot()
     gsm.set_phone_functionality(1)
     time.sleep_ms(1000)
-    gsm.set_pdp_context(1)
-    gsm.set_pdp_context(13)
+    gsm.set_pdp_context(1, 'IP')
+    # gsm.set_pdp_context(13, 'IP')
+    # gsm.set_pdp_context(2, 'PPP')
     gsm.register_on_network()
+    gsm.send_cmd(f'AT+CSTT="{APN}"')
+    time.sleep_ms(300)
+    gsm.send_cmd('AT+CIICR')
+    time.sleep_ms(300)
+    gsm.send_cmd('AT+CIFSR')
+    time.sleep_ms(300)
+    gsm.send_cmd('AT+CIPPING="174.138.9.51"', timeout=10000)
+    gsm.send_cmd(f'AT+CNACT=1,"{APN}"')
+    gsm.send_cmd('AT+SMCONF="CLIENTID","7000G"')
+    gsm.send_cmd('AT+SMCONF="URL","mqtt.myproj.dev"')
+    gsm.send_cmd('AT+SMCONN')
+    return gsm
+
+
+if __name__ == '__main__':
+    run()
+    # gsm.send_cmd('AT+CIPSHUT')
+    # gsm.send_cmd('AT+CGDCONT=?')
+    # gsm.send_cmd('AT+CGATT=0')
+    # gsm.send_cmd('AT+SAPBR=3,1,"Contype","GPRS"')
+    # gsm.send_cmd('AT+SAPBR=3,1,"APN","SKY"')
+    # gsm.send_cmd('AT+CGDCONT=1,"IP","SKY"')
+    # gsm.send_cmd('AT+CGATT=1')
+    # gsm.send_cmd('AT+CGACT=1,1')
+    # gsm.send_cmd('AT+SAPBR=1,1')
+    # gsm.send_cmd('AT+SAPBR=2,1')
+    # gsm.send_cmd('AT+CIPMUX=1')
+    # gsm.send_cmd('AT+CIPRXGET=1')
+    # gsm.send_cmd('AT+CSTT="SKY","",""')
+    # gsm.send_cmd('AT+CIICR')
+    # gsm.send_cmd('AT+CIFSR;E0')
+    # gsm.send_cmd('AT+CGATT?')
+    # gsm.send_cmd('AT+CIFSR;E0')
+
+    # Does this connect PPP? What about the other PDP context?
+    # g.send_cmd('ATD*99#')
+    # g.send_cmd('AT+CGDCONT=2,"PPP","SKY"')
+
+    # import network
+    # ppp = network.PPP(gsm.uart)
+    # ppp.active(True)
+    # ppp.connect()
+    # print(ppp.status())
+    # print(ppp.isconnected())
+    # print(ppp.ifconfig())
