@@ -105,7 +105,32 @@ class SIMCOM7000G:
         else:
             raise Exception('Failure to register on network')
 
+    # MQTT Operations
+    def mqtt_connect(self):
+        # TODO: Assert connected to the network?
+        self.send_cmd('AT+SMCONF="CLIENTID","7000G"')
+        self.send_cmd('AT+SMCONF="URL","mqtt.myproj.dev"')
+        self.send_cmd('AT+SMCONN')
+        # TODO: Set to hex?
+
+    def mqtt_publish(self, topic, data):
+        # TODO: QOS
+        # TODO: Assert connected to the broker?
+        # TODO: Publish data to specific topic
+        self.send_cmd(f'AT+SMPUB="{topic}","{len(data)}",1,1')
+        self.uart.write(data)
+
+    def mqtt_subscribe(self, topic):
+        # TODO: QOS
+        self.send_cmd(f'AT+SMSUB="{topic}",1')
+
+    def mqtt_unsubscribe(self, topic):
+        self.send_cmd(f'AT+SMUNSUB={topic}')
+
+
+# APN = "SKY"
 APN = "internet.golantelecom.net.il"
+
 
 def run():
     gsm = SIMCOM7000G(modem_pwr_pin=4, rx=26, tx=27, apn=APN)
@@ -132,9 +157,6 @@ def run():
     time.sleep_ms(300)
     gsm.send_cmd('AT+CIPPING="174.138.9.51"', timeout=10000)
     gsm.send_cmd(f'AT+CNACT=1,"{APN}"')
-    gsm.send_cmd('AT+SMCONF="CLIENTID","7000G"')
-    gsm.send_cmd('AT+SMCONF="URL","mqtt.myproj.dev"')
-    gsm.send_cmd('AT+SMCONN')
     return gsm
 
 
