@@ -21,7 +21,7 @@ class SIMCOM7000G:
             if self.send_cmd('AT', timeout=500):
                 break
         else:
-            raise Exception("Could not initialize")
+            raise TimeoutError("Could not initialize")
 
         time.sleep_ms(3000)
 
